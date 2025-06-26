@@ -1,0 +1,16 @@
+# Dependencies
+node_modules/
+dist/
+
+# Logs
+logs/
+error.log
+
+# Environment variables
+.env
+
+# TypeScript
+tsconfig.tsbuildinfo
+
+# Optional (uncomment if needed)
+# package-lock.json
