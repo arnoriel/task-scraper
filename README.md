@@ -86,8 +86,29 @@ npm run dev
 
 ### 🌍 Expose Publicly with Ngrok (Optional)
 
+1. Install Ngrok globally:
+
 ```bash
 npm install -g ngrok
+```
+
+2. Add your Ngrok authtoken:
+
+```bash
+ngrok config add-authtoken <your-authtoken>
+```
+> 📝 Get your authtoken from Registering/Login to https://dashboard.ngrok.com/
+
+3. (Optional) Edit your `ngrok.yml` file if needed:
+
+```yml
+agent:
+  authtoken: <your-authtoken>
+```
+
+4. Run Ngrok to expose your server:
+
+```bash
 ngrok http 3000
 ```
 
@@ -245,14 +266,14 @@ This project includes a built-in logging system that writes logs to a file locat
 
 **Logging Features**:
 
-- ✅ Logs all system-level errors and runtime exceptions
-- ✅ Logs successful startup and proxy usage
-- ✅ Centralized logging via `logError` and `logInfo` functions from `logger.ts`
+* ✅ Logs all system-level errors and runtime exceptions
+* ✅ Logs successful startup and proxy usage
+* ✅ Centralized logging via `logError` and `logInfo` functions from `logger.ts`
 
 **Location**:
 
-- Folder: `logs/`
-- File: `error.log`
+* Folder: `logs/`
+* File: `error.log`
 
 **Log Format**:
 
