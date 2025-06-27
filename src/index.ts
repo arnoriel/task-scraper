@@ -8,7 +8,16 @@ import { ProxyManager } from './proxy';
 import cors from 'cors';
 import { logError, logInfo } from './logger';
 
-// Extend Request type
+// Custom Error class
+class HttpError extends Error {
+  statusCode: number; 
+  constructor(statusCode: number, message: string) {
+    super(message);
+    this.statusCode = statusCode;
+  }
+}
+
+// Extend Express Request with proxyAgent
 declare module 'express' {
   interface Request {
     proxyAgent?: SocksProxyAgent;
@@ -22,12 +31,12 @@ app.use(express.json());
 let browser: Browser | null = null;
 const proxyManager = new ProxyManager(config.proxies);
 
-// Initialize browser
+// Browser initialization
 async function initializeBrowser() {
   try {
     browser = await chromium.launch({
       headless: true,
-      args: ['--no-sandbox', '--disable-setuid-sandbox']
+      args: ['--no-sandbox', '--disable-setuid-sandbox'],
     });
     logInfo('Browser initialized successfully');
   } catch (error) {
@@ -37,40 +46,32 @@ async function initializeBrowser() {
   }
 }
 
-// Middleware for proxy rotation and headers
-app.use(async (req: Request, res: Response, next: NextFunction) => {
+// Proxy + header middleware
+app.use((req: Request, res: Response, next: NextFunction) => {
   try {
-    const proxy = proxyManager.getRandomProxy();
-    req.proxyAgent = new SocksProxyAgent(proxy);
+    const proxyUrl = proxyManager.getRandomProxy();
+    req.headers['x-proxy-url'] = proxyUrl;
+    req.proxyAgent = new SocksProxyAgent(proxyUrl);
     const userAgentInstance = new UserAgent();
     req.headers['user-agent'] = userAgentInstance.toString();
     req.headers['accept-language'] = 'en-US,en;q=0.9';
     req.headers['accept'] = 'application/json, text/plain, */*';
     next();
   } catch (error) {
-    logError(error);
     next(error);
   }
 });
 
-// API Endpoints
-app.get('/tiktok/search-by-shop', async (req: Request, res: Response) => {
+// Routes
+app.get('/tiktok/search-by-shop', async (req: Request, res: Response, next: NextFunction) => {
   try {
     const shopId = req.query.shopId as string;
     if (!shopId) {
-      return res.status(400).json({
-        status_code: 400,
-        error: 'shopId is required',
-        message: 'missing value for shopId on the Parameters.'
-      });
+      throw new HttpError(400, 'shopId is required - missing value for shopId on the Parameters.');
     }
 
     if (!browser || !req.proxyAgent) {
-      return res.status(500).json({
-        status_code: 500,
-        error: 'Browser or proxy not initialized',
-        message: 'The browser or proxy agent failed to initialize properly.'
-      });
+      throw new HttpError(500, 'Browser or proxy not initialized properly.');
     }
 
     const scraper = new TikTokScraper(browser, req.proxyAgent, req.headers);
@@ -79,35 +80,22 @@ app.get('/tiktok/search-by-shop', async (req: Request, res: Response) => {
     res.status(200).json({
       status_code: 200,
       message: `Successfully retrieved data from shopId: ${shopId}`,
-      products: data
+      products: data,
     });
   } catch (error) {
-    logError(error);
-    res.status(500).json({
-      status_code: 500,
-      error: 'Internal server error',
-      message: (error as Error).message || 'An unexpected error occurred during the request.'
-    });
+    next(error);
   }
 });
 
-app.get('/tiktok/search-by-category', async (req: Request, res: Response) => {
+app.get('/tiktok/search-by-category', async (req: Request, res: Response, next: NextFunction) => {
   try {
     const categoryId = req.query.categoryId as string;
     if (!categoryId) {
-      return res.status(400).json({
-        status_code: 400,
-        error: 'categoryId is required',
-        message: 'missing value for categoryId on the Parameters.'
-      });
+      throw new HttpError(400, 'categoryId is required - missing value for categoryId on the Parameters.');
     }
 
     if (!browser || !req.proxyAgent) {
-      return res.status(500).json({
-        status_code: 500,
-        error: 'Browser or proxy not initialized',
-        message: 'The browser or proxy agent failed to initialize properly.'
-      });
+      throw new HttpError(500, 'Browser or proxy not initialized properly.');
     }
 
     const scraper = new TikTokScraper(browser, req.proxyAgent, req.headers);
@@ -116,35 +104,22 @@ app.get('/tiktok/search-by-category', async (req: Request, res: Response) => {
     res.status(200).json({
       status_code: 200,
       message: `Successfully retrieved data from categoryId: ${categoryId}`,
-      products: data
+      products: data,
     });
   } catch (error) {
-    logError(error);
-    res.status(500).json({
-      status_code: 500,
-      error: 'Internal server error',
-      message: (error as Error).message || 'An unexpected error occurred during the request.'
-    });
+    next(error);
   }
 });
 
-app.get('/tiktok/product-detail', async (req: Request, res: Response) => {
+app.get('/tiktok/product-detail', async (req: Request, res: Response, next: NextFunction) => {
   try {
     const productId = req.query.productId as string;
     if (!productId) {
-      return res.status(400).json({
-        status_code: 400,
-        error: 'productId is required',
-        message: 'missing value for productId on the Parameters.'
-      });
+      throw new HttpError(400, 'productId is required - missing value for productId on the Parameters.');
     }
 
     if (!browser || !req.proxyAgent) {
-      return res.status(500).json({
-        status_code: 500,
-        error: 'Browser or proxy not initialized',
-        message: 'The browser or proxy agent failed to initialize properly.'
-      });
+      throw new HttpError(500, 'Browser or proxy not initialized properly.');
     }
 
     const scraper = new TikTokScraper(browser, req.proxyAgent, req.headers);
@@ -153,36 +128,33 @@ app.get('/tiktok/product-detail', async (req: Request, res: Response) => {
     res.status(200).json({
       status_code: 200,
       message: `Successfully retrieved data from productId: ${productId}`,
-      product: data
+      product: data,
     });
   } catch (error) {
-    logError(error);
-    res.status(500).json({
-      status_code: 500,
-      error: 'Internal server error',
-      message: (error as Error).message || 'An unexpected error occurred during the request.'
-    });
+    next(error);
   }
 });
 
-// Error handling middleware
-app.use((err: Error, req: Request, res: Response, next: NextFunction) => {
-  console.error(err.stack);
+// Global Error Handler
+app.use((err: any, req: Request, res: Response, next: NextFunction) => {
+  const statusCode = err.statusCode || 500;
+  const message = err.message || 'An unexpected error occurred';
   logError(err);
-  res.status(500).json({
-    status_code: 500,
-    error: 'Internal server error',
-    message: 'An unexpected error occurred on the server. Please try again later.'
+
+  res.status(statusCode).json({
+    status_code: statusCode,
+    error: statusCode === 500 ? 'Internal server error' : 'Bad Request',
+    message,
   });
 });
 
-// Start server
+// Start Server
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, async () => {
   try {
     await initializeBrowser();
     logInfo(`Server running on port ${PORT}`);
-    console.log(`Server running on port ${PORT}`);
+    console.log(`🚀 Server running on port ${PORT}`);
   } catch (error) {
     logError(error);
     console.error('Server failed to start:', error);

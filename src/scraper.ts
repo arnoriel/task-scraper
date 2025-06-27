@@ -17,17 +17,17 @@ export class TikTokScraper {
   async searchByShop(shopId: string): Promise<any> {
     const page = await this.setupPage();
     try {
-      const url = `${config.tiktokBaseUrl}/shop/${shopId}`;
+      const url = `${config.tiktokBaseUrl}/view/shop/${shopId}`;
       logInfo(`Navigating to URL: ${url}`);
       await page.goto(url, { waitUntil: 'networkidle', timeout: config.requestTimeout });
       const jsonData = await this.extractJsonData(page);
-      await page.close();
       logInfo(`Successfully scraped shopId: ${shopId}`);
       return jsonData;
     } catch (error) {
-      await page.close();
       logError(`Failed to scrape shopId ${shopId}: ${error}`);
       throw error;
+    } finally {
+      await page.close();
     }
   }
 
@@ -38,13 +38,13 @@ export class TikTokScraper {
       logInfo(`Navigating to URL: ${url}`);
       await page.goto(url, { waitUntil: 'networkidle', timeout: config.requestTimeout });
       const jsonData = await this.extractJsonData(page);
-      await page.close();
       logInfo(`Successfully scraped categoryId: ${categoryId}`);
       return jsonData;
     } catch (error) {
-      await page.close();
       logError(`Failed to scrape categoryId ${categoryId}: ${error}`);
       throw error;
+    } finally {
+      await page.close();
     }
   }
 
@@ -55,40 +55,53 @@ export class TikTokScraper {
       logInfo(`Navigating to URL: ${url}`);
       await page.goto(url, { waitUntil: 'networkidle', timeout: config.requestTimeout });
       const jsonData = await this.extractJsonData(page);
-      await page.close();
       logInfo(`Successfully scraped productId: ${productId}`);
       return jsonData;
     } catch (error) {
-      await page.close();
       logError(`Failed to scrape productId ${productId}: ${error}`);
       throw error;
+    } finally {
+      await page.close();
     }
   }
 
   private async setupPage(): Promise<Page> {
-    const proxyUrl = this.getProxyUrlFromAgent();
+    const proxyConfig = this.buildProxyConfig();
+
     const context = await this.browser.newContext({
       userAgent: this.headers['user-agent'],
       extraHTTPHeaders: this.headers,
-      proxy: proxyUrl ? { server: proxyUrl } : undefined,
+      proxy: proxyConfig,
     });
+
     const page = await context.newPage();
     await page.setDefaultTimeout(config.requestTimeout);
     return page;
   }
 
-  private getProxyUrlFromAgent(): string | undefined {
-    return this.proxyAgent ? (this.proxyAgent as any).proxy : undefined;
+  private getProxyUrl(): string | undefined {
+    return this.headers['x-proxy-url'];
+  }
+
+  private buildProxyConfig():
+    | { server: string; bypass?: string; username?: string; password?: string }
+    | undefined {
+    const proxyUrl = this.getProxyUrl();
+    if (!proxyUrl) return undefined;
+    return { server: proxyUrl };
   }
 
   private async extractJsonData(page: Page): Promise<any> {
     const jsonData = await page.evaluate(() => {
       const scripts = Array.from(document.querySelectorAll('script'));
       for (const script of scripts) {
-        if (script.id === '__UNIVERSAL_DATA_FOR_REHYDRATION__' || script.id === 'SIGI_STATE') {
+        if (
+          script.id === '__UNIVERSAL_DATA_FOR_REHYDRATION__' ||
+          script.id === 'SIGI_STATE'
+        ) {
           try {
             return JSON.parse(script.innerText);
-          } catch (e) {
+          } catch {
             continue;
           }
         }
@@ -97,8 +110,7 @@ export class TikTokScraper {
     });
 
     if (!jsonData) {
-      logError('Failed to extract JSON data from page');
-      throw new Error('Failed to extract JSON data');
+      throw new Error('Failed to extract JSON data from page');
     }
 
     return jsonData;
